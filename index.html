@@ -459,6 +459,7 @@
             let raycaster, mouse;
             let hoveredCard = null;
             let isChaos = false; // New Chaos state
+            const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
 
             // Fireworks State
             const fireworks = [];
@@ -495,9 +496,9 @@
                 camera = new THREE.PerspectiveCamera(50, window.innerWidth / window.innerHeight, 0.1, 2000);
                 camera.position.set(0, 0, 130);
 
-                renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, powerPreference: "high-performance" });
+                renderer = new THREE.WebGLRenderer({ antialias: !isMobile, alpha: true, powerPreference: "high-performance" });
                 renderer.setSize(window.innerWidth, window.innerHeight);
-                renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+                renderer.setPixelRatio(Math.min(window.devicePixelRatio, isMobile ? 1.5 : 2));
                 renderer.outputColorSpace = THREE.SRGBColorSpace;
                 container.appendChild(renderer.domElement);
 
@@ -1222,38 +1223,32 @@
                     cards.push(card);
                 }
 
-                // 3. Photo Rotation Logic (Every 10 seconds)
+                // 3. Photo Rotation Logic (Slow staggered rotation to prevent memory spikes)
+                let rotationIndex = 0;
                 setInterval(() => {
-                    if (currentMode !== 'GALLERY' || isChaos) return;
+                    if (currentMode !== 'GALLERY' || isChaos || cards.length === 0) return;
+                    const card = cards[rotationIndex % cards.length];
+                    rotationIndex++;
 
-                    cards.forEach((card, index) => {
-                        // Stagger the rotation for a smooth wave effect
-                        setTimeout(() => {
-                            gsap.to(card.material, {
-                                opacity: 0,
-                                duration: 1.5,
-                                onComplete: () => {
-                                    // Pick a random photo from the pool of 200
-                                    const nextIndex = Math.floor(Math.random() * myPhotos.length);
-                                    const newUrl = myPhotos[nextIndex];
-
-                                    loader.load(newUrl, (tex) => {
-                                        tex.colorSpace = THREE.SRGBColorSpace;
-                                        if (card.material.map) card.material.map.dispose();
-                                        card.material.map = tex;
-                                        card.userData.currentPhotoIndex = nextIndex;
-                                        card.material.needsUpdate = true;
-
-                                        gsap.to(card.material, {
-                                            opacity: 0.9,
-                                            duration: 1.5
-                                        });
-                                    });
-                                }
+                    gsap.to(card.material, {
+                        opacity: 0,
+                        duration: 1.5,
+                        onComplete: () => {
+                            const nextIndex = Math.floor(Math.random() * myPhotos.length);
+                            const newUrl = myPhotos[nextIndex];
+                            loader.load(newUrl, (tex) => {
+                                tex.colorSpace = THREE.SRGBColorSpace;
+                                if (card.material.map) card.material.map.dispose();
+                                card.material.map = tex;
+                                card.userData.currentPhotoIndex = nextIndex;
+                                card.material.needsUpdate = true;
+                                gsap.to(card.material, { opacity: 0.9, duration: 1.5 });
+                            }, undefined, (err) => {
+                                gsap.to(card.material, { opacity: 0.9, duration: 1 });
                             });
-                        }, index * 100); // 100ms stagger for a "wave" feel
+                        }
                     });
-                }, 10000);
+                }, 2000);
             }
 
             // --- Transition Logic ---
@@ -1400,7 +1395,7 @@
 
             function createTwinklingHeart() {
                 const geometry = new THREE.BufferGeometry();
-                const count = 12000;
+                const count = isMobile ? 6000 : 12000;
                 const scale = 32;
 
                 const positions = [];
