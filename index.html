@@ -1180,9 +1180,10 @@
 
 
                 const loader = new THREE.TextureLoader();
-                const cardCount = 200; // Increased to 200 to match photo capacity
+                const cardCount = 50; // Optimized: only 50 cards at once to prevent lag
                 const radius = 100; // Increased from 60
                 const cardGeo = new THREE.PlaneGeometry(12, 16);
+                const cards = []; // To keep track for rotation
 
                 for (let i = 0; i < cardCount; i++) {
                     const phi = Math.acos(-1 + (2 * i) / cardCount);
@@ -1213,11 +1214,46 @@
                     card.userData = {
                         originalPos: card.position.clone(),
                         originalScale: card.scale.clone(),
-                        id: i
+                        id: i,
+                        currentPhotoIndex: i % myPhotos.length
                     };
 
                     galleryGroup.add(card);
+                    cards.push(card);
                 }
+
+                // 3. Photo Rotation Logic (Every 10 seconds)
+                setInterval(() => {
+                    if (currentMode !== 'GALLERY' || isChaos) return;
+
+                    cards.forEach((card, index) => {
+                        // Stagger the rotation for a smooth wave effect
+                        setTimeout(() => {
+                            gsap.to(card.material, {
+                                opacity: 0,
+                                duration: 1.5,
+                                onComplete: () => {
+                                    // Pick a random photo from the pool of 200
+                                    const nextIndex = Math.floor(Math.random() * myPhotos.length);
+                                    const newUrl = myPhotos[nextIndex];
+
+                                    loader.load(newUrl, (tex) => {
+                                        tex.colorSpace = THREE.SRGBColorSpace;
+                                        if (card.material.map) card.material.map.dispose();
+                                        card.material.map = tex;
+                                        card.userData.currentPhotoIndex = nextIndex;
+                                        card.material.needsUpdate = true;
+
+                                        gsap.to(card.material, {
+                                            opacity: 0.9,
+                                            duration: 1.5
+                                        });
+                                    });
+                                }
+                            });
+                        }, index * 100); // 100ms stagger for a "wave" feel
+                    });
+                }, 10000);
             }
 
             // --- Transition Logic ---
