@@ -1,0 +1,2072 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>Love Gravity Field - Happy Universe</title>
+
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- GSAP for smooth animations -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/gsap.min.js"></script>
+
+    <!-- Three.js Import Map -->
+    <script type="importmap">
+        {
+            "imports": {
+                "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+                "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+            }
+        }
+    </script>
+
+    <!-- MediaPipe -->
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/control_utils/control_utils.js"
+        crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils/drawing_utils.js"
+        crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js" crossorigin="anonymous"></script>
+
+    <style>
+        html,
+        body {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            background-color: #05000a;
+            font-family: 'Inter', sans-serif;
+        }
+
+        body {
+            background-image:
+                radial-gradient(circle at 20% 20%, rgba(255, 0, 128, 0.12) 0%, transparent 40%),
+                radial-gradient(circle at 80% 80%, rgba(148, 0, 211, 0.12) 0%, transparent 40%);
+        }
+
+        canvas {
+            display: block;
+        }
+
+        .glass-panel {
+            background: rgba(255, 255, 255, 0.05);
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            box-shadow: 0 4px 30px rgba(0, 0, 0, 0.5);
+            color: #fff;
+        }
+
+        .glass-btn {
+            cursor: pointer;
+            pointer-events: auto;
+            /* Ensure button captures clicks */
+        }
+
+        .glass-btn:hover {
+            background: rgba(255, 255, 255, 0.15);
+            transform: scale(1.05);
+        }
+
+        .glass-btn:active {
+            transform: scale(0.95);
+        }
+
+        #input_video {
+            position: absolute;
+            top: -1000px;
+            left: -1000px;
+            width: 320px;
+            height: 240px;
+            opacity: 0;
+        }
+
+        #hand-debug-canvas {
+            position: absolute;
+            bottom: 20px;
+            right: 20px;
+            width: 200px;
+            height: 150px;
+            background: rgba(0, 0, 0, 0.5);
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            border-radius: 12px;
+            z-index: 100;
+            pointer-events: none;
+            display: none;
+            /* Hidden by default */
+        }
+
+        /* Instruction Panel */
+        #gesture-dashboard {
+            position: absolute;
+            bottom: 20px;
+            left: 20px;
+            width: 240px;
+            padding: 12px;
+            background: rgba(10, 5, 20, 0.7);
+            backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 192, 203, 0.2);
+            border-radius: 16px;
+            z-index: 50;
+            color: white;
+            font-family: 'Inter', sans-serif;
+            pointer-events: none;
+        }
+
+        .gesture-row {
+            display: flex;
+            align-items: center;
+            margin-bottom: 8px;
+            opacity: 0.7;
+            transition: all 0.2s;
+        }
+
+        .gesture-row.active {
+            opacity: 1.0;
+            color: #ff69b4;
+            font-weight: bold;
+            transform: translateX(5px);
+        }
+
+        .gesture-icon {
+            font-size: 1.2rem;
+            margin-right: 10px;
+            width: 24px;
+            text-align: center;
+        }
+
+        .gesture-desc {
+            font-size: 0.8rem;
+        }
+
+        /* Force buttons in dashboard to be clickable */
+        #gesture-dashboard button,
+        #gesture-minimized,
+        #close-instr-btn {
+            pointer-events: auto !important;
+            cursor: pointer;
+        }
+
+        /* Adjust footer instr to not overlap */
+        #footer-instr {
+            display: block;
+        }
+
+        /* Music Toggle Button Styling */
+        #music-btn {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            z-index: 2000;
+        }
+
+        .title-gradient {
+            background: linear-gradient(135deg, #fff 0%, #ff69b4 50%, #9400d3 100%);
+            -webkit-background-clip: text;
+            background-clip: text;
+            -webkit-text-fill-color: transparent;
+            text-shadow: 0 0 20px rgba(255, 105, 180, 0.3);
+        }
+
+        /* --- Tap to Start Overlay --- */
+        #start-overlay {
+            position: fixed;
+            inset: 0;
+            background: #05000a;
+            z-index: 9999;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            transition: opacity 0.8s ease-out, visibility 0.8s;
+        }
+
+        #start-overlay.hidden {
+            opacity: 0;
+            visibility: hidden;
+        }
+
+        .pulse-btn {
+            background: rgba(255, 105, 180, 0.2);
+            border: 2px solid #ff69b4;
+            color: #fff;
+            padding: 20px 40px;
+            border-radius: 50px;
+            font-weight: bold;
+            font-size: 1.2rem;
+            animation: pulse-border 2s infinite;
+            backdrop-filter: blur(10px);
+        }
+
+        @keyframes pulse-border {
+            0% {
+                box-shadow: 0 0 0 0 rgba(255, 105, 180, 0.7);
+            }
+
+            70% {
+                box-shadow: 0 0 0 20px rgba(255, 105, 180, 0);
+            }
+
+            100% {
+                box-shadow: 0 0 0 0 rgba(255, 105, 180, 0);
+            }
+        }
+
+        .ios-hint {
+            margin-top: 20px;
+            color: #ffc0cb;
+            font-size: 0.8rem;
+            opacity: 0.8;
+            max-width: 250px;
+            text-align: center;
+        }
+    </style>
+
+    <style>
+        /* Ensure 3D Canvas interacts */
+        /* Ensure 3D Canvas interacts */
+        #canvas-container canvas {
+            pointer-events: auto !important;
+            touch-action: none;
+            outline: none;
+            position: absolute;
+            top: 0;
+            left: 0;
+            z-index: 1;
+            /* Below UI overlay */
+        }
+
+        /* Force UI on top */
+        #ui-layer {
+            z-index: 1000 !important;
+        }
+
+        /* Ensure UI elements inside the overlay can still receive clicks/touches */
+        #ui-layer * {
+            pointer-events: auto !important;
+        }
+
+        /* Ensure UI buttons are above the canvas and receive clicks */
+        .glass-btn {
+            position: relative;
+            z-index: 1001;
+            pointer-events: auto !important;
+        }
+
+        /* Force buttons to be clickable */
+        .glass-btn,
+        .pointer-events-auto,
+        button {
+            pointer-events: auto !important;
+        }
+    </style>
+</head>
+
+<body>
+
+    <!-- Tap to Start Overlay for iOS/Autoplay -->
+    <div id="start-overlay">
+        <div class="pulse-btn">Enter Happy Universe</div>
+        <p class="ios-hint">iPhone Users: Please ensure your physical <b>Silent Switch</b> is OFF and volume is up! 🔊
+        </p>
+    </div>
+
+    <!-- UI Overlay: High Z-Index but click-through -->
+    <div id="ui-layer" class="absolute inset-0 z-50 flex flex-col justify-between p-6" style="pointer-events: auto;">
+
+        <!-- Header -->
+        <div class="flex justify-between items-start pointer-events-auto">
+            <div>
+                <h1 class="title-gradient text-3xl font-extrabold tracking-tighter">Hi Nugget Rabbit Meinv SIa</h1>
+            </div>
+
+            <div class="flex gap-3 pointer-events-auto items-center">
+                <!-- Music Toggle -->
+                <button id="music-btn"
+                    class="glass-panel glass-btn p-2 rounded-full text-[12px] transition flex items-center justify-center font-bold tracking-wide text-pink-300 group"
+                    title="Toggle Background Music">
+                    <span id="music-icon" class="group-hover:scale-110 transition-transform">🎵</span>
+                </button>
+                <!-- Hidden File Input -->
+                <input type="file" id="file-input" multiple accept="image/*" style="display:none">
+
+                <!-- Link Button -->
+                <button id="link-btn"
+                    class="glass-panel glass-btn p-1.5 rounded-full text-[10px] transition flex items-center gap-1 font-bold tracking-wide"
+                    title="Add Image URL">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5 text-pink-400 pointer-events-none"
+                        fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                            d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
+                    </svg>
+                </button>
+
+                <!-- Upload Button -->
+                <button id="upload-btn"
+                    class="glass-panel glass-btn p-1.5 rounded-full text-[10px] transition flex items-center gap-1 font-bold tracking-wide"
+                    title="Upload Local Photos">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5 text-pink-400 pointer-events-none"
+                        fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                            d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
+                    </svg>
+                </button>
+
+                <button id="explore-btn"
+                    class="glass-panel glass-btn p-1.5 rounded-full text-[10px] transition border-pink-500/30 border flex items-center justify-center"
+                    title="Explore / Jump to Core">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5 text-pink-400 pointer-events-none"
+                        fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                            d="M19 21l-7-5-7 5V5a2 2 0 012-2h10a2 2 0 012 2v16z" />
+                    </svg>
+                </button>
+                <button id="cam-btn"
+                    class="glass-panel glass-btn p-1.5 rounded-full text-[10px] transition flex items-center justify-center font-bold tracking-wide"
+                    title="Toggle Hand Magic">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5 text-pink-400 pointer-events-none"
+                        fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                            d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                    </svg>
+                </button>
+
+                <!-- Debug View Toggle -->
+                <button id="view-btn"
+                    class="glass-panel glass-btn p-1.5 rounded-full text-[10px] transition flex items-center justify-center font-bold tracking-wide text-pink-300"
+                    title="Toggle Camera Preview">
+                    👁️
+                </button>
+            </div>
+        </div>
+
+        <!-- Footer Instructions -->
+        <div class="text-left pointer-events-none pb-4 transition-opacity duration-500" id="footer-instr">
+            <div
+                class="inline-block px-4 py-1.5 rounded-full bg-black/40 backdrop-blur-md border border-white/10 shadow-lg ml-4 mb-4">
+                <p id="instruction-text" class="text-pink-100 text-[10px] font-medium tracking-wider">
+                    Ready to dive into the Heart?
+                </p>
+            </div>
+        </div>
+
+        <!-- Gesture Dashboard -->
+        <div id="gesture-dashboard">
+            <div class="flex justify-between items-center mb-3 border-b border-pink-500/30 pb-2">
+                <h3 class="text-xs font-bold text-pink-300 uppercase tracking-widest">Hand Controls</h3>
+                <button id="close-instr-btn"
+                    class="text-pink-300 hover:text-white font-bold px-1.5 focus:outline-none">×</button>
+            </div>
+            <div id="gesture-content">
+                <div class="gesture-row" id="g-nav">
+                    <span class="gesture-icon">🖐️</span>
+                    <span class="gesture-desc">Move Hand: Look Around</span>
+                </div>
+                <div class="gesture-row" id="g-enter">
+                    <span class="gesture-icon">🤟</span>
+                    <span class="gesture-desc">3 Fingers: Enter Sphere</span>
+                </div>
+                <div class="gesture-row" id="g-zoom">
+                    <span class="gesture-icon">🤏</span>
+                    <span class="gesture-desc">Pinch: Move Up (In) / Down (Out)</span>
+                </div>
+                <div class="gesture-row" id="g-exit">
+                    <span class="gesture-icon">✊</span>
+                    <span class="gesture-desc">Fist (Hold): Exit</span>
+                </div>
+                <div class="gesture-row" id="g-interact">
+                    <span class="gesture-icon">☝️</span>
+                    <span class="gesture-desc">Point (Hold): Open Photo</span>
+                </div>
+                <div class="gesture-row" id="g-chaos">
+                    <span class="gesture-icon">✋</span>
+                    <span class="gesture-desc">Palm (Hold): Chaos Mode</span>
+                </div>
+                <div class="mt-3 text-[10px] text-gray-400 italic" id="gesture-status">Status: Waiting for Hand...</div>
+            </div> <!-- End Content -->
+            <!-- Minimal View (Hidden by default) -->
+            <div id="gesture-minimized"
+                class="hidden text-pink-300 text-xs cursor-pointer font-bold tracking-widest text-center">
+                <span>?</span>
+            </div>
+        </div>
+
+        <canvas id="hand-debug-canvas" width="320" height="240"></canvas>
+
+        <!-- Hidden Video for CV -->
+        <video id="input_video" playsinline webkit-playsinline muted autoplay></video>
+
+        <!-- 3D Canvas Container -->
+        <div id="canvas-container" class="absolute inset-0 z-0 bg-transparent"></div>
+
+        <!-- Background Music: Using a more stable primary link with multiple sources -->
+        <audio id="bg-music" loop>
+            <!-- Primary Choice: Romantic Piano (Royalty Free) -->
+            <source src="https://cdn.pixabay.com/audio/2022/11/22/audio_feb63283f5.mp3" type="audio/mpeg">
+            <!-- Fallback 1: Birthday / Happy theme -->
+            <source src="https://cdn.pixabay.com/audio/2022/01/10/audio_f536f4523c.mp3" type="audio/mpeg">
+            <!-- Local Fallback: Recommendation for the user to upload their own file -->
+            <source src="music.mp3" type="audio/mpeg">
+        </audio>
+
+        <!-- Main Logic -->
+        <script type="module">
+            import * as THREE from 'three';
+            import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+
+            // --- CONFIGURATION: YOUR IMAGES ---
+            // MODE A: Self-Hosted (RECOMMENDED for GitHub Pages)
+            // Just put your photos in the same folder as this file and name them 1.jpeg, 2.jpeg...
+            const localPhotos = [];
+            const photoCount = 200;
+            for (let i = 1; i <= photoCount; i++) {
+                // UPDATED: Pointing to root folder and using .webp as requested
+                localPhotos.push(`./${i}.webp`);
+            }
+
+            // Combine: Only use local photos
+            const myPhotos = [...localPhotos];
+            // ---------------------------------
+            // ---------------------------------
+
+            // Global Error Handler for Debugging
+            window.onerror = function (msg, url, line, col, error) {
+                console.error("Error: " + msg + "\nLine: " + line);
+                // alert("Error: " + msg + "\nLine: " + line); // Uncomment for user feedback if needed
+                // For now, let's assumes silent failure and rely on console.
+            };
+
+            // Ensure UI Interactivity
+            document.querySelectorAll('button').forEach(btn => btn.style.pointerEvents = 'auto');
+
+
+            // --- State ---
+            let scene, camera, renderer, controls;
+            let heartSystem, universeSystem, rabbitSystem;
+            let galleryGroup;
+            let bubuGroup, duduGroup;
+            let bubuArmPivot, duduArmPivot;
+            // Removed Photo Road variables
+            let anchorSphere;
+            let heartUniforms;
+            let isCameraActive = false;
+            let handPresence = 0;
+            let time = 0;
+            let raycaster, mouse;
+            let hoveredCard = null;
+            let isChaos = false; // New Chaos state
+
+            // Fireworks State
+            const fireworks = [];
+            const fireworkGroup = new THREE.Group();
+            let ambientFireworkTimer = 0;
+
+            // Hand Tracking
+            let handController = null;
+            let virtualCursor = null;
+            let handPos = new THREE.Vector2(0, 0); // Normalized Screen Coords (-1 to 1)
+
+            // Mode: 'HEART' or 'GALLERY'
+            let currentMode = 'HEART';
+
+            // init() and animate() will be called at the end of the script to ensure classes are defined.
+
+            function init() {
+                // 1. Setup Scene
+                const container = document.getElementById('canvas-container');
+
+                scene = new THREE.Scene();
+                scene.fog = new THREE.FogExp2(0x05000a, 0.002);
+
+                // Lighting for the Dolls - Soft, Toy-like Lighting
+                const ambientLight = new THREE.AmbientLight(0xffffff, 0.9);
+                scene.add(ambientLight);
+                const dirLight = new THREE.DirectionalLight(0xffffff, 1.3);
+                dirLight.position.set(20, 50, 50);
+                scene.add(dirLight);
+                const backLight = new THREE.DirectionalLight(0xffc0cb, 0.6); // Rim light
+                backLight.position.set(-20, 20, -50);
+                scene.add(backLight);
+
+                camera = new THREE.PerspectiveCamera(50, window.innerWidth / window.innerHeight, 0.1, 2000);
+                camera.position.set(0, 0, 130);
+
+                renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, powerPreference: "high-performance" });
+                renderer.setSize(window.innerWidth, window.innerHeight);
+                renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+                renderer.outputColorSpace = THREE.SRGBColorSpace;
+                container.appendChild(renderer.domElement);
+
+                // 2. Create Objects
+                createUniverseBackground();
+                createTwinklingHeart();
+                createGallerySphere();
+                createVirtualCursor();
+                // Removed createPhotoRoad();
+
+                // Create Dolls (New Refined Style)
+                createBubu(); // White Panda-Bear
+                createDudu(); // Brown Bear
+
+                scene.add(fireworkGroup);
+
+                // 3. Interactions
+                controls = new OrbitControls(camera, renderer.domElement);
+                controls.enableDamping = true;
+                controls.dampingFactor = 0.05;
+                controls.enableZoom = true;
+                controls.minDistance = 20;
+                controls.maxDistance = 500;
+                controls.autoRotate = true;
+                controls.autoRotateSpeed = 0.6;
+
+                raycaster = new THREE.Raycaster();
+                mouse = new THREE.Vector2();
+
+                window.addEventListener('mousemove', onMouseMove);
+                window.addEventListener('resize', onWindowResize);
+
+                // Attach Touch Listeners to Canvas ONLY to avoid blocking UI buttons
+                const canvasEl = renderer.domElement;
+                canvasEl.style.touchAction = 'none'; // Force no scroll on canvas
+                canvasEl.addEventListener('touchstart', onTouchMove, { passive: false });
+                canvasEl.addEventListener('touchmove', onTouchMove, { passive: false });
+                // Also add logic to update mouse on touch start/move for the raycaster
+
+
+                // Hand Controller Init
+                handController = new HandController();
+                document.getElementById('cam-btn').addEventListener('click', () => handController.toggle());
+                document.getElementById('explore-btn').addEventListener('click', toggleMode);
+
+                // UI Toggles
+                const debugCanvas = document.getElementById('hand-debug-canvas');
+                document.getElementById('view-btn').addEventListener('click', () => {
+                    if (debugCanvas.style.display === 'none') {
+                        debugCanvas.style.display = 'block';
+                        // Ensure input video doesn't conflict? It's hidden by CSS usually.
+                    } else {
+                        debugCanvas.style.display = 'none';
+                    }
+                });
+
+                // Instruction Dashboard Toggle
+                const dashContent = document.getElementById('gesture-content');
+                const dashMin = document.getElementById('gesture-minimized');
+                const closeBtn = document.getElementById('close-instr-btn');
+
+                closeBtn.addEventListener('click', () => {
+                    dashContent.classList.add('hidden');
+                    dashMin.classList.remove('hidden');
+                    closeBtn.style.display = 'none'; // Hide X
+                });
+
+                dashMin.addEventListener('click', () => {
+                    dashContent.classList.remove('hidden');
+                    dashMin.classList.add('hidden');
+                    closeBtn.style.display = 'block'; // Show X
+                });
+
+
+                // Music Logic
+                const music = document.getElementById('bg-music');
+                const musicBtn = document.getElementById('music-btn');
+                const musicIcon = document.getElementById('music-icon');
+                let isMusicPlaying = false;
+                let isAudioLoading = false; // Prevent concurrent play calls
+
+                const startMusic = () => {
+                    if (isMusicPlaying || isAudioLoading) return;
+
+                    // Hide overlay
+                    const overlay = document.getElementById('start-overlay');
+                    if (overlay) overlay.classList.add('hidden');
+
+                    isAudioLoading = true;
+                    musicIcon.innerText = "⏳";
+
+                    // Try PIXABAY source 1, then fallback 2, then local
+                    const tryPlay = async () => {
+                        try {
+                            await music.play();
+                            isMusicPlaying = true;
+                            isAudioLoading = false;
+                            musicIcon.innerText = "🔊";
+                            // Success! Remove global listeners
+                            document.removeEventListener('click', startMusic);
+                            document.removeEventListener('touchstart', startMusic);
+                        } catch (err) {
+                            console.warn("Play attempt failed:", err);
+                            // If current source failed, the <audio> element will try its children automatically 
+                            // but Safari sometimes needs a manual nudge or reload on the next source.
+                            if (music.currentSrc && music.currentSrc.includes('pixabay')) {
+                                console.log("Pixabay might be blocked by Safari Range Request policy. Trying next...");
+                                music.load(); // Move to next source
+                                setTimeout(tryPlay, 100); // Re-try
+                            } else {
+                                isAudioLoading = false;
+                                musicIcon.innerText = "🎵";
+                            }
+                        }
+                    };
+
+                    tryPlay();
+                };
+
+                // Bridge for browser autoplay policy
+                document.addEventListener('click', startMusic);
+                document.addEventListener('touchstart', startMusic);
+
+                musicBtn.addEventListener('click', async (e) => {
+                    e.stopPropagation();
+                    if (isAudioLoading) return;
+
+                    if (isMusicPlaying) {
+                        music.pause();
+                        musicIcon.innerText = "🔇";
+                        isMusicPlaying = false;
+                    } else {
+                        isAudioLoading = true;
+                        musicIcon.innerText = "⏳";
+
+                        try {
+                            await music.play();
+                            musicIcon.innerText = "🔊";
+                            isMusicPlaying = true;
+                        } catch (err) {
+                            console.error("Music play failed:", err);
+                            music.load();
+                            try {
+                                await music.play();
+                                musicIcon.innerText = "🔊";
+                                isMusicPlaying = true;
+                            } catch (e2) {
+                                musicIcon.innerText = "❌";
+                                setTimeout(() => musicIcon.innerText = "🎵", 2000);
+                            }
+                        } finally {
+                            isAudioLoading = false;
+                        }
+                    }
+                });
+
+                // Periodic check to ensure music is actually playing if supposed to
+                music.addEventListener('stalled', () => {
+                    if (isMusicPlaying) music.load();
+                });
+
+                // Link Logic
+                document.getElementById('link-btn').addEventListener('click', handleUrlInput);
+
+                // Upload Logic (MISSING LISTENERS FIXED)
+                const uploadBtn = document.getElementById('upload-btn');
+                const fileInput = document.getElementById('file-input');
+
+                uploadBtn.addEventListener('click', () => {
+                    fileInput.click();
+                });
+
+                fileInput.addEventListener('change', handleFileUpload);
+            }
+
+            // --- Fireworks Logic ---
+            class Particle {
+                constructor(pos, color) {
+                    this.pos = pos.clone();
+                    this.vel = new THREE.Vector3(
+                        (Math.random() - 0.5) * 2,
+                        (Math.random() - 0.5) * 2,
+                        (Math.random() - 0.5) * 2
+                    ).multiplyScalar(Math.random() * 2 + 1);
+                    this.life = 1.0;
+                    this.decay = 0.01 + Math.random() * 0.02;
+                    this.color = color;
+                }
+                update() {
+                    this.pos.add(this.vel);
+                    this.vel.multiplyScalar(0.96); // Air resistance
+                    this.life -= this.decay;
+                }
+            }
+
+            class Firework {
+                constructor(x, y, z, color, isAmbient = false) {
+                    this.particles = [];
+                    // Finer particles: higher count, smaller size
+                    const particleCount = isAmbient ? (40 + Math.random() * 40) : (150 + Math.floor(Math.random() * 100));
+                    const pos = new THREE.Vector3(x, y, z);
+                    for (let i = 0; i < particleCount; i++) {
+                        this.particles.push(new Particle(pos, color));
+                    }
+
+                    // Geometry & Material for efficient rendering
+                    this.geometry = new THREE.BufferGeometry();
+                    this.material = new THREE.PointsMaterial({
+                        size: 1.2, // Finer size
+                        vertexColors: true,
+                        transparent: true,
+                        blending: THREE.AdditiveBlending,
+                        depthWrite: false
+                    });
+
+                    this.points = new THREE.Points(this.geometry, this.material);
+                    fireworkGroup.add(this.points);
+                }
+
+                update() {
+                    const positions = [];
+                    const colors = [];
+
+                    for (let i = this.particles.length - 1; i >= 0; i--) {
+                        const p = this.particles[i];
+                        p.update();
+                        if (p.life <= 0) {
+                            this.particles.splice(i, 1);
+                        } else {
+                            positions.push(p.pos.x, p.pos.y, p.pos.z);
+                            const c = p.color;
+                            // Fade color based on life
+                            colors.push(c.r * p.life, c.g * p.life, c.b * p.life);
+                        }
+                    }
+
+                    this.geometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+                    this.geometry.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3));
+                    this.material.opacity = this.particles.length > 0 ? this.particles[0].life : 0;
+
+                    if (this.particles.length === 0) {
+                        fireworkGroup.remove(this.points);
+                        this.geometry.dispose();
+                        this.material.dispose();
+                        return false; // Dead
+                    }
+                    return true; // Alive
+                }
+            }
+
+            function triggerFireworks() {
+                const colors = [new THREE.Color(0xff69b4), new THREE.Color(0xffd700), new THREE.Color(0x00ffff), new THREE.Color(0xffffff)];
+                // Transition burst (Large)
+                for (let i = 0; i < 12; i++) {
+                    setTimeout(() => {
+                        const angle = Math.random() * Math.PI * 2;
+                        const radius = 20 + Math.random() * 50;
+                        const x = Math.cos(angle) * radius;
+                        const y = Math.sin(angle) * radius;
+                        const z = (Math.random() - 0.5) * 60;
+                        const color = colors[Math.floor(Math.random() * colors.length)];
+                        fireworks.push(new Firework(x, y, z, color, false));
+                    }, i * 100);
+                }
+            }
+
+            function spawnAmbientFirework() {
+                const colors = [new THREE.Color(0xff69b4), new THREE.Color(0xffd700), new THREE.Color(0x00ffff), new THREE.Color(0xffffff), new THREE.Color(0x9400d3)];
+                // Randomly spread across the universe
+                const range = 400;
+                const x = (Math.random() - 0.5) * range;
+                const y = (Math.random() - 0.5) * range;
+                const z = (Math.random() - 0.5) * range;
+                const color = colors[Math.floor(Math.random() * colors.length)];
+                fireworks.push(new Firework(x, y, z, color, true));
+            }
+
+            // --- URL Conversion Helper ---
+            function convertShareableLink(url) {
+                if (url.includes('drive.google.com')) {
+                    let id = null;
+                    const parts = url.split('/');
+                    const dIndex = parts.indexOf('d');
+                    if (dIndex !== -1 && parts.length > dIndex + 1) {
+                        id = parts[dIndex + 1];
+                    } else {
+                        const urlObj = new URL(url);
+                        id = urlObj.searchParams.get('id');
+                    }
+                    if (id) {
+                        return `https://drive.google.com/uc?export=view&id=${id}`;
+                    }
+                }
+                if (url.includes('dropbox.com')) {
+                    return url.replace('dl=0', 'raw=1');
+                }
+                return url;
+            }
+
+            function handleUrlInput() {
+                const userFolder = "https://drive.google.com/drive/folders/1CsYWNqfcT26ESpIi0KyuWpibBICaPP4o?usp=sharing";
+                const url = prompt("Paste your IMAGE link (Google Drive, Dropbox, etc).\n\n(Tip: Folder links don't work for textures, please use a direct file link!)", userFolder);
+                if (!url) return;
+                if (url.includes('drive.google.com') && url.includes('/folders/')) {
+                    alert("⚠️ System Alert:\n\nYou pasted a Google Drive FOLDER link.\nThe 3D gallery needs a direct IMAGE file to display it.\n\nInstruction:\n1. Open the folder.\n2. Right-click a specific photo.\n3. Click 'Share' -> 'Copy Link'.\n4. Paste that link here!");
+                    return;
+                }
+                const directUrl = convertShareableLink(url.trim());
+                updateGalleryWithUrl(directUrl);
+            }
+
+            function updateGalleryWithUrl(url) {
+                if (!galleryGroup) return;
+                const loader = new THREE.TextureLoader();
+                loader.crossOrigin = 'anonymous';
+                const btn = document.getElementById('link-btn');
+                const originalHTML = btn.innerHTML;
+                btn.innerHTML = '<span class="text-green-400 font-bold">✓</span>';
+                setTimeout(() => btn.innerHTML = originalHTML, 2000);
+                galleryGroup.children.forEach(child => {
+                    if (child.isMesh && child.userData.id !== undefined) {
+                        loader.load(url, (tex) => {
+                            tex.colorSpace = THREE.SRGBColorSpace;
+                            if (child.material.map) child.material.map.dispose();
+                            child.material.map = tex;
+                            child.material.needsUpdate = true;
+                        });
+                    }
+                });
+                if (currentMode !== 'GALLERY') {
+                    const instr = document.getElementById('instruction-text');
+                    instr.innerText = "Link loaded! Explore the Milky Way.";
+                    setTimeout(() => { if (currentMode === 'HEART') instr.innerText = 'Ready to dive into the Heart?'; }, 3000);
+                }
+            }
+
+            async function handleFileUpload(event) {
+                const files = event.target.files;
+                if (!files || files.length === 0) return;
+
+                const btn = document.getElementById('upload-btn');
+                const originalHTML = btn.innerHTML;
+                btn.innerHTML = '<span class="text-green-400 font-bold">...</span>'; // Loading indicator
+
+                try {
+                    const newUrls = Array.from(files).map(file => URL.createObjectURL(file));
+                    const loader = new THREE.TextureLoader();
+
+                    // Pre-load all textures once
+                    const loadPromises = newUrls.map(url => {
+                        return new Promise((resolve, reject) => {
+                            loader.load(url, (tex) => {
+                                tex.colorSpace = THREE.SRGBColorSpace;
+                                resolve(tex);
+                            }, undefined, reject);
+                        });
+                    });
+
+                    const loadedTextures = await Promise.all(loadPromises);
+
+                    if (galleryGroup && loadedTextures.length > 0) {
+                        let texIndex = 0;
+                        galleryGroup.children.forEach(child => {
+                            if (child.isMesh && child.userData.id !== undefined) {
+                                // Assign pre-loaded texture
+                                const tex = loadedTextures[texIndex % loadedTextures.length];
+
+                                // Clone texture if we want independent mapping? No, same ref is fine for performance.
+                                // Actually, if we use same texture ref, sharing is efficient.
+
+                                if (child.material.map) child.material.map.dispose();
+                                child.material.map = tex;
+                                child.material.needsUpdate = true;
+
+                                texIndex++;
+                            }
+                        });
+
+                        // Success Feedback
+                        btn.innerHTML = '<span class="text-green-400 font-bold">✓</span>';
+                        setTimeout(() => btn.innerHTML = originalHTML, 2000);
+
+                        if (currentMode !== 'GALLERY') {
+                            const instr = document.getElementById('instruction-text');
+                            instr.innerText = "Photos updated! Explore the Milky Way to see them.";
+                            setTimeout(() => { if (currentMode === 'HEART') instr.innerText = 'Ready to dive into the Heart?'; }, 3000);
+                        }
+                    } else {
+                        throw new Error("Gallery not ready or no textures loaded");
+                    }
+                } catch (e) {
+                    console.error("Upload Error:", e);
+                    btn.innerHTML = '<span class="text-red-400 font-bold">X</span>';
+                    setTimeout(() => btn.innerHTML = originalHTML, 2000);
+                }
+            }
+
+            // --- Character Utilities ---
+            function createVinylMaterial(color) {
+                return new THREE.MeshStandardMaterial({
+                    color: color,
+                    roughness: 0.5, // Smoother skin
+                    metalness: 0.05,
+                    bumpScale: 0.02
+                });
+            }
+
+            // --- Doll: Bubu (White/Panda-like) ---
+            function createBubu() {
+                bubuGroup = new THREE.Group();
+                bubuGroup.position.set(-45, 5, -20);
+                bubuGroup.rotation.y = 0.5;
+                scene.add(bubuGroup);
+
+                // Materials
+                const mainMat = createVinylMaterial(0xffffff); // White
+                const darkMat = createVinylMaterial(0x2a2a2a); // Soft Black
+                const blushMat = createVinylMaterial(0xffaeb9); // Soft Pink
+                const eyeMat = new THREE.MeshBasicMaterial({ color: 0x1a1a1a }); // Soft Black
+
+                // 1. Head: Broad, slightly squashed sphere for kawaii ratio
+                const headGeo = new THREE.SphereGeometry(14, 64, 64);
+                const head = new THREE.Mesh(headGeo, mainMat);
+                head.scale.set(1.15, 1.0, 1.05);
+                head.position.y = 12;
+                bubuGroup.add(head);
+
+                // 2. Ears: Round, placed wide and somewhat high
+                const earGeo = new THREE.SphereGeometry(3.8, 32, 32);
+                const earL = new THREE.Mesh(earGeo, darkMat);
+                earL.position.set(-11, 23, 0);
+                bubuGroup.add(earL);
+                const earR = new THREE.Mesh(earGeo, darkMat);
+                earR.position.set(11, 23, 0);
+                bubuGroup.add(earR);
+
+                // 3. Body: Cute chubby egg shape
+                const bodyGeo = new THREE.SphereGeometry(9, 64, 64);
+                const body = new THREE.Mesh(bodyGeo, mainMat);
+                body.position.y = -1;
+                body.scale.set(1.05, 0.95, 0.95);
+                bubuGroup.add(body);
+
+                // 4. Face Features
+                addKawaiiFace(bubuGroup, eyeMat, blushMat, 10.5);
+
+                // 5. Collar (Panda markings or accessory)
+                const collar = new THREE.Mesh(new THREE.TorusGeometry(8.8, 1.2, 16, 64), darkMat);
+                collar.position.set(0, 6.5, 0);
+                collar.rotation.x = Math.PI / 2;
+                bubuGroup.add(collar);
+
+                // 6. Limbs
+                const armGeo = new THREE.CapsuleGeometry(2.2, 3.5, 4, 16);
+                const armL = new THREE.Mesh(armGeo, mainMat);
+                armL.position.set(-8.5, 0, 4);
+                armL.rotation.set(-Math.PI / 3, 0, Math.PI / 6);
+                bubuGroup.add(armL);
+
+                bubuArmPivot = new THREE.Group();
+                bubuArmPivot.position.set(8.5, 1, 4);
+                bubuGroup.add(bubuArmPivot);
+                const armR = new THREE.Mesh(armGeo, mainMat);
+                armR.position.set(0, -1.5, 0);
+                bubuArmPivot.add(armR);
+
+                // Feet
+                const footGeo = new THREE.SphereGeometry(3.2, 32, 32);
+                const footL = new THREE.Mesh(footGeo, darkMat); footL.position.set(-4, -9, 2); footL.scale.set(1, 0.6, 1.2); bubuGroup.add(footL);
+                const footR = new THREE.Mesh(footGeo, darkMat); footR.position.set(4, -9, 2); footR.scale.set(1, 0.6, 1.2); bubuGroup.add(footR);
+            }
+
+            // --- Doll: Dudu (Brown Bear) ---
+            function createDudu() {
+                duduGroup = new THREE.Group();
+                duduGroup.position.set(45, 5, -20);
+                duduGroup.rotation.y = -0.5;
+                scene.add(duduGroup);
+
+                // Materials - UPDATED COLOR
+                const skinMat = createVinylMaterial(0xcd9b7c); // Warm Milky Brown (Reference Match)
+                const darkMat = createVinylMaterial(0x4A3025); // Dark Brown
+                const blushMat = createVinylMaterial(0xffb7b2); // Soft Peach/Pink
+                const eyeMat = new THREE.MeshBasicMaterial({ color: 0x1a1a1a });
+
+                // 1. Head
+                const headGeo = new THREE.SphereGeometry(14, 64, 64);
+                const head = new THREE.Mesh(headGeo, skinMat);
+                head.scale.set(1.15, 1.0, 1.05);
+                head.position.y = 12;
+                duduGroup.add(head);
+
+                // 2. Ears
+                const earGeo = new THREE.SphereGeometry(3.8, 32, 32);
+                const earL = new THREE.Mesh(earGeo, skinMat); earL.position.set(-11, 23, 0); duduGroup.add(earL);
+                const earR = new THREE.Mesh(earGeo, skinMat); earR.position.set(11, 23, 0); duduGroup.add(earR);
+                // Inner ear pads (darker brown)
+                const innerEarGeo = new THREE.SphereGeometry(2.0, 32, 32);
+                const iEarL = new THREE.Mesh(innerEarGeo, darkMat); iEarL.position.set(-11, 23, 3.2); iEarL.scale.set(1, 1, 0.3); duduGroup.add(iEarL);
+                const iEarR = new THREE.Mesh(innerEarGeo, darkMat); iEarR.position.set(11, 23, 3.2); iEarR.scale.set(1, 1, 0.3); duduGroup.add(iEarR);
+
+                // 3. Body
+                const bodyGeo = new THREE.SphereGeometry(9, 64, 64);
+                const body = new THREE.Mesh(bodyGeo, skinMat);
+                body.position.y = -1;
+                body.scale.set(1.05, 0.95, 0.95);
+                duduGroup.add(body);
+
+                // 4. Face
+                addKawaiiFace(duduGroup, eyeMat, blushMat, 10.5);
+
+                // 5. Collar/Neck accessory (optional, kept simple for Dudu)
+
+                // 6. Limbs
+                const armGeo = new THREE.CapsuleGeometry(2.2, 3.5, 4, 16);
+                const armR = new THREE.Mesh(armGeo, skinMat);
+                armR.position.set(8.5, 0, 4);
+                armR.rotation.set(-Math.PI / 3, 0, -Math.PI / 6);
+                duduGroup.add(armR);
+
+                duduArmPivot = new THREE.Group();
+                duduArmPivot.position.set(-8.5, 1, 4);
+                duduGroup.add(duduArmPivot);
+                const armL = new THREE.Mesh(armGeo, skinMat);
+                armL.position.set(0, -1.5, 0);
+                duduArmPivot.add(armL);
+
+                // Feet
+                const footGeo = new THREE.SphereGeometry(3.2, 32, 32);
+                const footL = new THREE.Mesh(footGeo, darkMat); footL.position.set(-4, -9, 2); footL.scale.set(1, 0.6, 1.2); duduGroup.add(footL);
+                const footR = new THREE.Mesh(footGeo, darkMat); footR.position.set(4, -9, 2); footR.scale.set(1, 0.6, 1.2); duduGroup.add(footR);
+            }
+
+            function addKawaiiFace(group, eyeMat, blushMat, yCenter) {
+                // Updated to match the reference picture (w-mouth, tongue, visible features)
+
+                // 1. Eyes: Small black spheres, closer together
+                const eyeGeo = new THREE.SphereGeometry(1.2, 32, 32);
+                const eyeSpacing = 4.5;
+
+                // Moved Z from 13.0 to 14.8 to sit ON SURFACE of head (r ~= 14.7)
+                const eyeL = new THREE.Mesh(eyeGeo, eyeMat);
+                eyeL.position.set(-eyeSpacing, yCenter, 14.8);
+                eyeL.scale.set(1, 1, 0.6);
+                group.add(eyeL);
+
+                const eyeR = new THREE.Mesh(eyeGeo, eyeMat);
+                eyeR.position.set(eyeSpacing, yCenter, 14.8);
+                eyeR.scale.set(1, 1, 0.6);
+                group.add(eyeR);
+
+                // 2. Nose: Small dark oval between eyes
+                // Moved Z from 13.5 to 15.2
+                const noseGeo = new THREE.SphereGeometry(0.7, 32, 32);
+                const nose = new THREE.Mesh(noseGeo, eyeMat);
+                nose.position.set(0, yCenter - 1.0, 15.2);
+                nose.scale.set(1.2, 0.8, 0.5);
+                group.add(nose);
+
+                // 3. Cheeks: Distinct Pink Circles
+                // Moved Z to 14.2 and adjusted rotation to sit on cheeks
+                const cheekGeo = new THREE.CircleGeometry(2.2, 32);
+                const cheekMat = new THREE.MeshBasicMaterial({
+                    color: blushMat.color,
+                    transparent: true,
+                    opacity: 0.6,
+                    side: THREE.DoubleSide
+                });
+
+                const cheekL = new THREE.Mesh(cheekGeo, cheekMat);
+                cheekL.position.set(-9.5, yCenter - 1.5, 13.0);
+                cheekL.rotation.y = -0.5; // Rotate to face outward slightly
+                group.add(cheekL);
+
+                const cheekR = new THREE.Mesh(cheekGeo, cheekMat);
+                cheekR.position.set(9.5, yCenter - 1.5, 13.0);
+                cheekR.rotation.y = 0.5;
+                group.add(cheekR);
+
+                // 4. Mouth: "W" style with tongue
+                const canvas = document.createElement('canvas');
+                canvas.width = 128; canvas.height = 128;
+                const ctx = canvas.getContext('2d');
+
+                // Clear
+                ctx.clearRect(0, 0, 128, 128);
+
+                // Draw "W" Mouth Line
+                ctx.lineWidth = 8;
+                ctx.strokeStyle = '#4a2c2a'; // Dark Brown
+                ctx.lineCap = 'round';
+                ctx.lineJoin = 'round';
+
+                ctx.beginPath();
+                // Left curve of W
+                ctx.moveTo(24, 40);
+                ctx.quadraticCurveTo(44, 75, 64, 45);
+                // Right curve of W
+                ctx.moveTo(64, 45);
+                ctx.quadraticCurveTo(84, 75, 104, 40);
+                ctx.stroke();
+
+                // Draw Tongue (Pink U-shape below center)
+                ctx.fillStyle = '#ff8fa3'; // Pink
+                ctx.beginPath();
+                ctx.moveTo(48, 65);
+                ctx.quadraticCurveTo(48, 100, 64, 100); // Bottom left
+                ctx.quadraticCurveTo(80, 100, 80, 65);   // Bottom right
+                ctx.fill();
+
+                // Small tongue line top fix (optional, just filling gap)
+                ctx.beginPath();
+                ctx.moveTo(48, 65);
+                ctx.lineTo(80, 65);
+                ctx.fill();
+
+                const mouthTex = new THREE.CanvasTexture(canvas);
+                const mouthMat = new THREE.MeshBasicMaterial({ map: mouthTex, transparent: true, opacity: 1.0 });
+
+                // Moved Z to 15.0 to ensure visibility
+                const mouth = new THREE.Mesh(new THREE.PlaneGeometry(4.0, 4.0), mouthMat);
+                mouth.position.set(0, yCenter - 3.2, 15.0);
+                mouth.rotation.x = -0.1;
+                group.add(mouth);
+            }
+
+            // --- Gallery Generation ---
+            function createGallerySphere() {
+                galleryGroup = new THREE.Group();
+                galleryGroup.visible = false; // Hidden initially
+                scene.add(galleryGroup);
+
+                // 1. Central Visual Anchor (The Black Sphere) - Updated to Standard Material
+                const anchorGeo = new THREE.SphereGeometry(12, 64, 64);
+                const anchorMat = new THREE.MeshStandardMaterial({
+                    color: 0x050505,
+                    roughness: 0.3,
+                    metalness: 0.8
+                });
+                anchorSphere = new THREE.Mesh(anchorGeo, anchorMat);
+                galleryGroup.add(anchorSphere);
+
+                // "Happy Universe" Text Label - Replaced Sprite with High Res Mesh Plane
+                const canvas = document.createElement('canvas');
+                canvas.width = 1024;
+                canvas.height = 512;
+                const ctx = canvas.getContext('2d');
+                ctx.fillStyle = "rgba(0,0,0,0)";
+                ctx.fillRect(0, 0, 1024, 512);
+
+                // Text styling
+                ctx.font = "Bold 100px Inter, sans-serif";
+                ctx.fillStyle = "white";
+                ctx.textAlign = "center";
+                ctx.textBaseline = "middle";
+                ctx.shadowColor = "#ec4899";
+                ctx.shadowBlur = 30;
+
+                ctx.fillText("bb, heppii", 512, 180);
+                ctx.fillText("valentinee!!!", 512, 320);
+
+                const textTex = new THREE.CanvasTexture(canvas);
+                textTex.colorSpace = THREE.SRGBColorSpace;
+
+                const textMat = new THREE.MeshBasicMaterial({
+                    map: textTex,
+                    transparent: true,
+                    opacity: 1.0,
+                    side: THREE.DoubleSide
+                });
+
+                const textGeo = new THREE.PlaneGeometry(24, 12);
+                const textMesh = new THREE.Mesh(textGeo, textMat);
+                textMesh.position.set(0, 0, 13); // Positioned just in front of the sphere (radius 12)
+                galleryGroup.add(textMesh);
+
+                // 2. Floating Cards Vortex
+
+                // (Photos are now preloaded at the top of the script)
+
+
+                const loader = new THREE.TextureLoader();
+                const cardCount = 200; // Increased to 200 to match photo capacity
+                const radius = 100; // Increased from 60
+                const cardGeo = new THREE.PlaneGeometry(12, 16);
+
+                for (let i = 0; i < cardCount; i++) {
+                    const phi = Math.acos(-1 + (2 * i) / cardCount);
+                    const theta = Math.sqrt(cardCount * Math.PI) * phi;
+
+                    const x = radius * Math.cos(theta) * Math.sin(phi);
+                    const y = radius * Math.sin(theta) * Math.sin(phi);
+                    const z = radius * Math.cos(phi);
+
+                    let mat;
+                    const url = myPhotos[i % myPhotos.length];
+                    const tex = loader.load(url, undefined, undefined, (err) => {
+                        console.warn(`Local photo failed to load: ${url}`);
+                    });
+                    tex.colorSpace = THREE.SRGBColorSpace;
+                    mat = new THREE.MeshBasicMaterial({
+                        map: tex,
+                        transparent: true,
+                        opacity: 0.9,
+                        side: THREE.DoubleSide
+                    });
+
+                    const card = new THREE.Mesh(cardGeo, mat);
+                    card.position.set(x, y, z);
+                    card.lookAt(0, 0, 0);
+                    card.rotateY(Math.PI);
+
+                    card.userData = {
+                        originalPos: card.position.clone(),
+                        originalScale: card.scale.clone(),
+                        id: i
+                    };
+
+                    galleryGroup.add(card);
+                }
+            }
+
+            // --- Transition Logic ---
+            function toggleMode() {
+                const btn = document.getElementById('explore-btn');
+                const instr = document.getElementById('instruction-text');
+
+                if (currentMode === 'HEART') {
+                    // WARP MODE
+                    currentMode = 'TRANSITION';
+                    btn.title = 'Return to Space';
+                    instr.innerText = 'Warping to Core...';
+
+                    // Reduced duration from 5.0 to 3.0 for better responsiveness
+                    const duration = 3.0;
+
+                    // 1. Explosive Heart Expansion
+                    gsap.to(heartUniforms.uExpansion, { value: 25.0, duration: duration, ease: "power2.inOut" });
+
+                    // 2. Warp Speed Universe
+                    if (universeSystem) {
+                        gsap.to(universeSystem.scale, { x: 1, y: 1, z: 8, duration: duration * 0.8, yoyo: true, repeat: 1 });
+                        gsap.to(universeSystem.rotation, { z: "+=3", duration: duration, ease: "power2.in" });
+                    }
+
+                    // 3. Move Camera Fast
+                    controls.enabled = false;
+
+                    gsap.to(camera.position, {
+                        z: 45,
+                        duration: duration,
+                        ease: "power3.inOut",
+                        onUpdate: () => camera.lookAt(0, 0, 0),
+                        onComplete: () => {
+                            currentMode = 'GALLERY';
+                            instr.innerText = 'Hover to interact with memories';
+                            controls.enabled = true;
+                            controls.minDistance = 25;
+                            galleryGroup.visible = true;
+
+                            // Gallery Elements Pop-in (Elastic)
+                            galleryGroup.children.forEach((child, i) => {
+                                child.scale.set(0, 0, 0);
+                                gsap.to(child.scale, {
+                                    x: child.userData.originalScale ? child.userData.originalScale.x : 1,
+                                    y: child.userData.originalScale ? child.userData.originalScale.y : 1,
+                                    z: child.userData.originalScale ? child.userData.originalScale.z : 1,
+                                    duration: 1.2,
+                                    ease: "elastic.out(1, 0.5)",
+                                    delay: i * 0.01 // Fast ripple effect
+                                });
+                            });
+
+                            // Launch Celebration!
+                            triggerFireworks();
+                        }
+                    });
+
+                } else {
+                    // Return to Heart
+                    currentMode = 'HEART';
+                    btn.title = 'Explore Galaxy';
+                    instr.innerText = 'Ready to dive into the Heart?';
+
+                    // Hide Gallery
+                    isChaos = false; // Reset Chaos
+                    gsap.to(galleryGroup.scale, {
+                        x: 0, y: 0, z: 0, duration: 0.5, onComplete: () => {
+                            galleryGroup.visible = false;
+                            galleryGroup.scale.set(1, 1, 1);
+                        }
+                    });
+
+                    // Restore Heart
+                    gsap.to(heartUniforms.uExpansion, { value: 1.0, duration: 3.0, ease: "power2.out" });
+
+                    // Reset Universe
+                    if (universeSystem) {
+                        gsap.to(universeSystem.scale, { z: 1, duration: 1.0 });
+                    }
+
+                    // Move Camera Back
+                    controls.enabled = false;
+                    gsap.to(camera.position, {
+                        z: 130,
+                        duration: 3.0,
+                        ease: "power2.inOut",
+                        onUpdate: () => camera.lookAt(0, 0, 0),
+                        onComplete: () => controls.enabled = true
+                    });
+                }
+            }
+
+            function toggleChaos() {
+                if (currentMode !== 'GALLERY') return;
+                isChaos = !isChaos;
+                const instr = document.getElementById('instruction-text');
+                instr.innerText = isChaos ? "CHAOS MODE ACTIVATED!" : "Returning to Order...";
+                setTimeout(() => { if (currentMode === 'GALLERY') instr.innerText = 'Hover to interact with memories'; }, 2000);
+
+                galleryGroup.children.forEach((child, i) => {
+                    if (child.isMesh && child.userData.id !== undefined) {
+                        if (isChaos) {
+                            // Scatter to random positions
+                            const range = 300;
+                            const targetPos = new THREE.Vector3(
+                                (Math.random() * 2 - 1) * range,
+                                (Math.random() * 2 - 1) * range,
+                                (Math.random() * 2 - 1) * range
+                            );
+                            gsap.to(child.position, {
+                                x: targetPos.x, y: targetPos.y, z: targetPos.z,
+                                duration: 2.0,
+                                ease: "power2.inOut",
+                                delay: i * 0.005
+                            });
+                        } else {
+                            // Return to original sphere positions
+                            const orig = child.userData.originalPos;
+                            gsap.to(child.position, {
+                                x: orig.x, y: orig.y, z: orig.z,
+                                duration: 2.0,
+                                ease: "power2.inOut",
+                                delay: i * 0.005
+                            });
+                        }
+                    }
+                });
+            }
+
+            // --- Existing Graphics ---
+            function getHeartPosition(scale) {
+                let x, y, z;
+                while (true) {
+                    x = (Math.random() * 2 - 1) * 1.5;
+                    y = (Math.random() * 2 - 1) * 1.5;
+                    z = (Math.random() * 2 - 1) * 1.5;
+                    const a = x * x + (9 / 4) * y * y + z * z - 1;
+                    if (a * a * a - x * x * z * z * z - (9 / 80) * y * y * z * z * z < 0) {
+                        return new THREE.Vector3(x * scale, y * scale, z * scale);
+                    }
+                }
+            }
+
+            function createTwinklingHeart() {
+                const geometry = new THREE.BufferGeometry();
+                const count = 12000;
+                const scale = 32;
+
+                const positions = [];
+                const colors = [];
+                const randoms = [];
+                const sizes = [];
+
+                const deepPink = new THREE.Color(0xff1493);
+                const violet = new THREE.Color(0x9400d3);
+                const purple = new THREE.Color(0x8a2be2);
+                const white = new THREE.Color(0xffffff);
+
+                for (let i = 0; i < count; i++) {
+                    const pos = getHeartPosition(scale);
+                    positions.push(pos.x, pos.y, pos.z);
+                    const t = (pos.y / scale + 1) * 0.5;
+                    let finalColor = violet.clone().lerp(deepPink, t);
+                    if (Math.random() > 0.7) finalColor.lerp(purple, 0.5);
+                    if (Math.random() > 0.97) finalColor = white;
+                    colors.push(finalColor.r, finalColor.g, finalColor.b);
+                    randoms.push(Math.random());
+                    sizes.push(Math.random());
+                }
+
+                geometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+                geometry.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3));
+                geometry.setAttribute('aRandom', new THREE.Float32BufferAttribute(randoms, 1));
+                geometry.setAttribute('aSize', new THREE.Float32BufferAttribute(sizes, 1));
+
+                heartUniforms = {
+                    uTime: { value: 0 },
+                    uPixelRatio: { value: renderer.getPixelRatio() },
+                    uHandPresence: { value: 0 },
+                    uExpansion: { value: 1.0 } // Controlled by GSAP
+                };
+
+                const material = new THREE.ShaderMaterial({
+                    uniforms: heartUniforms,
+                    vertexShader: `
+                    uniform float uTime;
+                    uniform float uPixelRatio;
+                    uniform float uHandPresence;
+                    uniform float uExpansion;
+                    attribute float aRandom;
+                    attribute float aSize;
+                    attribute vec3 color;
+                    varying vec3 vColor;
+                    
+                    void main() {
+                        vColor = color;
+                        vec3 pos = position;
+                        
+                        // Heartbeat
+                        float beat = sin(uTime * 2.5) * 0.5 + 0.5;
+                        float heartbeatScale = 1.0 + (beat * 0.03) + (uHandPresence * 0.2);
+                        
+                        // Calculate expansion logic
+                        // We want a smooth linear expansion, not a snap.
+                        // Base state: uExpansion = 1.0.
+                        // Expanded state: uExpansion > 1.0.
+                        float expansionFactor = max(0.0, uExpansion - 1.0);
+                        
+                        // Apply heartbeat, but reduce it as we explode so the tunnel is stable
+                        float scale = heartbeatScale * (1.0 - clamp(expansionFactor * 0.1, 0.0, 1.0));
+                        
+                        // Direction from center
+                        vec3 dir = normalize(pos);
+                        
+                        // Smoothly push particles outwards based on expansion
+                        // expansionFactor goes from 0 to 24.
+                        // We multiply by a spread factor (e.g. 80.0) to make the cloud huge.
+                        pos = pos * scale + dir * (expansionFactor * 80.0);
+
+                        // Interaction: Jitter
+                        // Reduce jitter during warp to avoid chaotic flickering
+                        float jitter = sin(uTime * 15.0 + pos.y * 0.5) * 0.3 * uHandPresence * (1.0 - clamp(expansionFactor, 0.0, 1.0));
+                        pos += normal * jitter;
+
+                        vec4 mvPosition = viewMatrix * modelMatrix * vec4(pos, 1.0);
+                        gl_Position = projectionMatrix * mvPosition;
+                        
+                        float speed = 2.0 + (uHandPresence * 8.0);
+                        float twinkle = sin(uTime * speed + aRandom * 25.0);
+                        twinkle = pow(twinkle * 0.5 + 0.5, 3.0); 
+                        
+                        float baseSize = 3.0 + (aSize * 2.0); 
+                        float size = baseSize + (twinkle * 6.0) + (uHandPresence * 5.0);
+                        
+                        gl_PointSize = size * uPixelRatio * (60.0 / -mvPosition.z);
+                    }
+                `,
+                    fragmentShader: `
+                    varying vec3 vColor;
+                    void main() {
+                        float d = distance(gl_PointCoord, vec2(0.5));
+                        if(d > 0.5) discard;
+                        float strength = 1.0 - (d * 2.0);
+                        strength = pow(strength, 1.5); 
+                        vec3 finalColor = mix(vColor, vec3(1.0), strength * 0.5);
+                        gl_FragColor = vec4(finalColor, strength);
+                    }
+                `,
+                    transparent: true,
+                    depthWrite: false,
+                    blending: THREE.AdditiveBlending
+                });
+
+                heartSystem = new THREE.Points(geometry, material);
+                heartSystem.rotation.x = -Math.PI / 2;
+                scene.add(heartSystem);
+            }
+
+            // --- Universe & Rabbits ---
+            function createRabbitTexture() {
+                const canvas = document.createElement('canvas');
+                canvas.width = 64;
+                canvas.height = 64;
+                const ctx = canvas.getContext('2d');
+                ctx.fillStyle = '#ffffff';
+                ctx.beginPath(); ctx.arc(32, 40, 14, 0, Math.PI * 2); ctx.fill();
+                ctx.beginPath(); ctx.ellipse(24, 20, 5, 12, -0.2, 0, Math.PI * 2); ctx.fill();
+                ctx.beginPath(); ctx.ellipse(40, 20, 5, 12, 0.2, 0, Math.PI * 2); ctx.fill();
+                return new THREE.CanvasTexture(canvas);
+            }
+            function createStarTexture() {
+                const canvas = document.createElement('canvas');
+                canvas.width = 32;
+                canvas.height = 32;
+                const ctx = canvas.getContext('2d');
+                const grad = ctx.createRadialGradient(16, 16, 0, 16, 16, 16);
+                grad.addColorStop(0, 'rgba(255, 255, 255, 1)');
+                grad.addColorStop(1, 'rgba(255, 255, 255, 0)');
+                ctx.fillStyle = grad;
+                ctx.fillRect(0, 0, 32, 32);
+                return new THREE.CanvasTexture(canvas);
+            }
+            function createUniverseBackground() {
+                const starGeo = new THREE.BufferGeometry();
+                const rabbitGeo = new THREE.BufferGeometry();
+                const starPos = []; const starSizes = []; const rabbitPos = [];
+
+                for (let i = 0; i < 800; i++) {
+                    starPos.push((Math.random() - 0.5) * 400, (Math.random() - 0.5) * 400, (Math.random() - 0.5) * 400);
+                    starSizes.push(Math.random() * 1.5);
+                }
+                for (let i = 0; i < 150; i++) {
+                    const r = 50 + Math.random() * 100;
+                    const theta = Math.random() * Math.PI * 2;
+                    const phi = Math.acos((Math.random() * 2) - 1);
+                    rabbitPos.push(r * Math.sin(phi) * Math.cos(theta), r * Math.sin(phi) * Math.sin(theta), r * Math.cos(phi));
+                }
+                starGeo.setAttribute('position', new THREE.Float32BufferAttribute(starPos, 3));
+                starGeo.setAttribute('size', new THREE.Float32BufferAttribute(starSizes, 1));
+                const starMat = new THREE.PointsMaterial({
+                    color: 0xffffff, size: 1.0, transparent: true, opacity: 0.6,
+                    map: createStarTexture(), blending: THREE.AdditiveBlending, depthWrite: false
+                });
+                universeSystem = new THREE.Points(starGeo, starMat);
+                scene.add(universeSystem);
+
+                rabbitGeo.setAttribute('position', new THREE.Float32BufferAttribute(rabbitPos, 3));
+                const rabbitMat = new THREE.PointsMaterial({
+                    color: 0xffc0cb, size: 3.5, transparent: true, opacity: 0.8,
+                    map: createRabbitTexture(), alphaTest: 0.5, depthWrite: false
+                });
+                rabbitSystem = new THREE.Points(rabbitGeo, rabbitMat);
+                scene.add(rabbitSystem);
+            }
+
+            function onWindowResize() {
+                // Add a small delay for mobile orientation change stability
+                setTimeout(() => {
+                    camera.aspect = window.innerWidth / window.innerHeight;
+                    camera.updateProjectionMatrix();
+                    renderer.setSize(window.innerWidth, window.innerHeight);
+                    if (heartUniforms) heartUniforms.uPixelRatio.value = renderer.getPixelRatio();
+                }, 100);
+            }
+
+            function onMouseMove(event) {
+                // Mouse is always valid input source
+                if (!isCameraActive) {
+                    mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
+                    mouse.y = - (event.clientY / window.innerHeight) * 2 + 1;
+                }
+            }
+
+            function onTouchMove(event) {
+                // If the touch originates on a UI button, ignore it so the button can receive the event
+                if (event.target.closest('button, .glass-btn')) {
+                    return;
+                }
+                if (!isCameraActive && event.touches.length > 0) {
+                    // Capture coords for Raycasting without preventing default behavior
+                    const touch = event.touches[0];
+                    const rect = renderer.domElement.getBoundingClientRect();
+                    // Calculate relative to canvas, not window, for accuracy if canvas isn't full screen (it is here, but good practice)
+                    mouse.x = ((touch.clientX - rect.left) / rect.width) * 2 - 1;
+                    mouse.y = - ((touch.clientY - rect.top) / rect.height) * 2 + 1;
+                }
+            }
+
+            function createVirtualCursor() {
+                // A glowing ring to show where the hand is pointing
+                const geometry = new THREE.RingGeometry(1.5, 2.0, 32);
+                const material = new THREE.MeshBasicMaterial({
+                    color: 0xff00ff,
+                    side: THREE.DoubleSide,
+                    transparent: true,
+                    opacity: 0.0, // Hidden by default
+                    depthTest: false, // Always on top
+                    depthWrite: false
+                });
+                virtualCursor = new THREE.Mesh(geometry, material);
+                scene.add(virtualCursor);
+            }
+
+            function toggleCamera() {
+                const btn = document.getElementById('cam-btn');
+                if (!isCameraActive) {
+                    btn.innerHTML = '...';
+                    startMediaPipe();
+                } else {
+                    isCameraActive = false;
+                    btn.innerHTML = 'HAND MAGIC';
+                    handPresence = 0;
+                }
+            }
+
+            function animate() {
+                requestAnimationFrame(animate);
+                time += 0.01;
+
+                controls.update();
+
+                // --- 1. Hand Tracking Input (PRIORITY) ---
+                let isHandHovering = false;
+                let currentGesture = 'NONE';
+
+                if (handController && handController.active) {
+                    // Smooth hand presence
+                    handPresence = THREE.MathUtils.lerp(handPresence, handController.hasHand ? 1.0 : 0.0, 0.1);
+
+                    if (handController.hasHand) {
+                        currentGesture = handController.gesture || 'OPEN';
+                        const pos = handController.position;
+
+                        // Update UI Status
+                        const statusText = document.getElementById('gesture-status');
+                        if (statusText) statusText.innerText = `Status: ${currentGesture}`;
+                        document.querySelectorAll('.gesture-row').forEach(el => el.classList.remove('active'));
+
+                        // --- STATE MACHINE ---
+
+                        // 1. PINCH (Zoom)
+                        if (currentGesture === 'PINCH') {
+                            const row = document.getElementById('g-zoom'); if (row) row.classList.add('active');
+                            const zoomSpeed = 2.0;
+
+                            if (controls.enabled) {
+                                // "Fly Mode" Logic:
+                                // Hand Up (+Y) -> Move Forward -> Zoom In (Decrease Z)
+                                // Hand Down (-Y) -> Move Back -> Zoom Out (Increase Z)
+
+                                const zoomDelta = pos.y * zoomSpeed;
+                                camera.position.z -= zoomDelta;
+                                camera.position.z = THREE.MathUtils.clamp(camera.position.z, 20, 200);
+                            }
+                        }
+
+                        // 2. THREE FINGERS (Enter)
+                        else if (currentGesture === 'THREE_FINGER') {
+                            const row = document.getElementById('g-enter'); if (row) row.classList.add('active');
+                            if (currentMode === 'HEART') {
+                                if (!window.toggleTimer) window.toggleTimer = 0;
+                                window.toggleTimer += 0.02;
+                                if (window.toggleTimer > 1.0) {
+                                    toggleMode();
+                                    window.toggleTimer = 0;
+                                }
+                            } else { window.toggleTimer = 0; }
+                        }
+
+                        // 3. FIST (Exit)
+                        else if (currentGesture === 'FIST') {
+                            const row = document.getElementById('g-exit'); if (row) row.classList.add('active');
+                            if (!window.fistTimer) window.fistTimer = 0;
+                            window.fistTimer += 0.02;
+
+                            // Visual feedback on cursor
+                            if (virtualCursor) virtualCursor.material.color.setHex(0xff0000);
+
+                            if (window.fistTimer > 1.5) {
+                                if (currentMode === 'GALLERY') {
+                                    toggleMode(); // Exit
+                                    window.fistTimer = 0;
+                                }
+                            }
+                        } else {
+                            window.fistTimer = 0;
+                        }
+
+                        // 5. PALM (Chaos)
+                        if (currentGesture === 'PALM') {
+                            const row = document.getElementById('g-chaos'); if (row) row.classList.add('active');
+                            if (currentMode === 'GALLERY') {
+                                if (!window.palmTimer) window.palmTimer = 0;
+                                window.palmTimer += 0.02;
+
+                                // Visual feedback for the hold
+                                if (virtualCursor) {
+                                    virtualCursor.scale.setScalar(2.0 * window.palmTimer);
+                                    virtualCursor.material.opacity = 0.5 + (window.palmTimer * 0.5);
+                                }
+
+                                if (window.palmTimer > 1.0) {
+                                    toggleChaos();
+                                    window.palmTimer = 0;
+                                }
+                            }
+                        } else {
+                            window.palmTimer = 0;
+                        }
+
+                        // 4. POINT/OPEN (Nav & Interaction)
+                        if (currentGesture === 'POINT' || currentGesture === 'OPEN') {
+                            if (currentGesture === 'POINT') {
+                                const row = document.getElementById('g-interact'); if (row) row.classList.add('active');
+                            } else {
+                                const row = document.getElementById('g-nav'); if (row) row.classList.add('active');
+                            }
+
+                            // Navigation (Orbit) -> Hand X/Y to Rotate Camera around Target
+                            // HYBRID MODE: Only apply hand rotation if Mouse is NOT interacting.
+                            const deadzone = 0.15; // Increased deadzone to prevent accidental drift
+                            const sensitivity = 0.04;
+
+                            let rotX = 0;
+                            let rotY = 0;
+
+                            if (Math.abs(pos.x) > deadzone) rotX = (pos.x - Math.sign(pos.x) * deadzone) * sensitivity;
+                            if (Math.abs(pos.y) > deadzone) rotY = (pos.y - Math.sign(pos.y) * deadzone) * sensitivity;
+
+                            if (controls) {
+                                if (controls.state === -1 && (rotX !== 0 || rotY !== 0)) {
+                                    controls.autoRotate = false;
+                                    controls.rotateLeft(rotX * 2);
+                                    controls.rotateUp(rotY * 2);
+                                    controls.update();
+                                }
+                            }
+                        }
+
+                        // 4b. POINT (Interaction)
+                        if (currentGesture === 'POINT') {
+                            const row = document.getElementById('g-interact'); if (row) row.classList.add('active');
+
+                            // Only Update Virtual Cursor & Mouse Raycast when POINTING
+                            // This allows Mouse to work freely when just "Looking" (OPEN gesture)
+                            mouse.x = THREE.MathUtils.lerp(mouse.x, pos.x, 0.2);
+                            mouse.y = THREE.MathUtils.lerp(mouse.y, pos.y, 0.2);
+
+                            if (virtualCursor) {
+                                virtualCursor.material.opacity = 0.8;
+                                const vector = new THREE.Vector3(mouse.x, mouse.y, 0.9);
+                                vector.unproject(camera);
+                                const dir = vector.sub(camera.position).normalize();
+                                const distance = 40;
+                                const pos3d = camera.position.clone().add(dir.multiplyScalar(distance));
+                                virtualCursor.position.copy(pos3d);
+                                virtualCursor.lookAt(camera.position);
+                            }
+                        } else {
+                            // If not pointing, hide cursor (unless mouse is moving, which is handled normally)
+                            if (virtualCursor) virtualCursor.material.opacity = 0;
+                        }
+
+                    } else {
+                        const statusText = document.getElementById('gesture-status');
+                        if (statusText) statusText.innerText = "Status: Waiting for Hand...";
+                        if (virtualCursor) virtualCursor.material.opacity = 0;
+
+                        // RESUME AUTO & MOUSE CONTROL
+                        if (controls) {
+                            controls.autoRotate = true;
+                            controls.enabled = true; // Ensure mouse works
+                        }
+                    }
+                } else {
+                    // Mouse mode: Hide cursor
+                    if (virtualCursor) virtualCursor.material.opacity = 0;
+                    // RESUME AUTO & MOUSE CONTROL
+                    if (controls) {
+                        controls.autoRotate = true;
+                        controls.enabled = true; // Ensure mouse works
+                    }
+                }
+
+                // --- 2. Animations ---
+                // Heart Animation
+                if (heartUniforms) {
+                    heartUniforms.uTime.value = time;
+                    heartUniforms.uHandPresence.value = THREE.MathUtils.lerp(heartUniforms.uHandPresence.value, handPresence, 0.1);
+                }
+                if (heartSystem) heartSystem.rotation.z += 0.003 + (handPresence * 0.01);
+                if (universeSystem) { universeSystem.rotation.y += 0.0005; universeSystem.rotation.x += 0.0002; }
+                if (rabbitSystem) { rabbitSystem.rotation.y -= 0.001; rabbitSystem.rotation.z += 0.0005; rabbitSystem.position.y = Math.sin(time * 0.5) * 2; }
+
+                // Bubu Animation
+                if (bubuGroup) {
+                    bubuGroup.rotation.y = 0.5 + Math.sin(time * 0.5) * 0.1;
+                    bubuGroup.position.y = 5 + Math.sin(time * 0.8) * 1.5;
+                    if (bubuArmPivot) bubuArmPivot.rotation.z = Math.PI - 0.2 + Math.sin(time * 6) * 0.5;
+                }
+
+                // Dudu Animation
+                if (duduGroup) {
+                    duduGroup.rotation.y = -0.5 + Math.cos(time * 0.5) * 0.1;
+                    duduGroup.position.y = 5 + Math.cos(time * 0.8) * 1.5;
+                    if (duduArmPivot) duduArmPivot.rotation.z = -Math.PI + 0.2 - Math.sin(time * 6) * 0.5;
+                }
+
+                // --- 3. Raycaster Logic (Interaction) ---
+                if (currentMode === 'GALLERY' && galleryGroup.visible) {
+                    raycaster.setFromCamera(mouse, camera);
+                    // Filter meshes only (ignore text sprite and anchor for hover)
+                    const intersects = raycaster.intersectObjects(
+                        galleryGroup.children.filter(c => c.isMesh && c.userData.id !== undefined)
+                    );
+
+                    if (intersects.length > 0) {
+                        const obj = intersects[0].object;
+
+                        // Only interact if Gesturing POINT (or default OPEN)
+                        // UPDATED: Allow interaction if Camera is OFF (Mouse/Touch) or if Gesture is Valid
+                        if (!isCameraActive || (currentGesture === 'POINT' || currentGesture === 'OPEN')) {
+                            isHandHovering = true;
+
+                            // DWELL LOGIC applied in Raycaster section
+                            if (hoveredCard !== obj) {
+                                // Reset prev
+                                if (hoveredCard) {
+                                    gsap.to(hoveredCard.scale, {
+                                        x: hoveredCard.userData.originalScale.x,
+                                        y: hoveredCard.userData.originalScale.y,
+                                        z: hoveredCard.userData.originalScale.z,
+                                        duration: 0.3
+                                    });
+                                    hoveredCard.material.opacity = 0.8;
+                                }
+                                // Set new
+                                hoveredCard = obj;
+                                gsap.to(hoveredCard.scale, {
+                                    x: hoveredCard.userData.originalScale.x * 1.2,
+                                    y: hoveredCard.userData.originalScale.y * 1.2,
+                                    z: hoveredCard.userData.originalScale.z * 1.2,
+                                    duration: 0.3
+                                });
+                                hoveredCard.material.opacity = 1.0;
+                            }
+                        }
+                    } else {
+                        if (hoveredCard) {
+                            gsap.to(hoveredCard.scale, {
+                                x: hoveredCard.userData.originalScale.x,
+                                y: hoveredCard.userData.originalScale.y,
+                                z: hoveredCard.userData.originalScale.z,
+                                duration: 0.3
+                            });
+                            hoveredCard.material.opacity = 0.8;
+                            hoveredCard = null;
+                        }
+                    }
+                    // Slow rotation
+                    galleryGroup.rotation.y = Math.sin(time * 0.1) * 0.1;
+
+                    // CHAOS Swirl
+                    if (isChaos) {
+                        galleryGroup.rotation.y += 0.005;
+                        galleryGroup.rotation.z += 0.002;
+                    }
+                }
+
+                // --- 4. Virtual Cursor Feedback ---
+                if (virtualCursor) {
+                    if (currentGesture === 'FIST') {
+                        virtualCursor.material.color.setHex(0xff0000);
+                        virtualCursor.scale.setScalar(1.5);
+                    }
+                    else if (currentGesture === 'PINCH') {
+                        virtualCursor.material.color.setHex(0xffff00);
+                        virtualCursor.scale.setScalar(0.5);
+                    }
+                    else if (currentGesture === 'THREE_FINGER') {
+                        virtualCursor.material.color.setHex(0x00ffff);
+                        virtualCursor.scale.setScalar(1.5);
+                    }
+                    else if (currentGesture === 'PALM') {
+                        virtualCursor.material.color.setHex(0xffffff); // White for chaos
+                        virtualCursor.scale.setScalar(2.0);
+                        virtualCursor.rotation.z += 0.1; // Spin!
+                    }
+                    else if (isHandHovering) {
+                        virtualCursor.material.color.setHex(0x00ff00); // Green when active
+                        virtualCursor.scale.setScalar(1.2);
+                    } else {
+                        virtualCursor.material.color.setHex(0xff00ff); // Pink default
+                        virtualCursor.scale.setScalar(1.0);
+                    }
+                }
+
+                renderer.render(scene, camera);
+
+                // Update Fireworks
+                for (let i = fireworks.length - 1; i >= 0; i--) {
+                    if (!fireworks[i].update()) {
+                        fireworks.splice(i, 1);
+                    }
+                }
+
+                // Ambient Spawning (every ~2 seconds)
+                ambientFireworkTimer++;
+                if (ambientFireworkTimer > 120) {
+                    spawnAmbientFirework();
+                    ambientFireworkTimer = 0;
+                }
+            }
+
+            // --- Roboust Hand Controller Class ---
+            class HandController {
+                constructor() {
+                    this.active = false;
+                    this.hasHand = false;
+                    this.position = { x: 0, y: 0 };
+                    this.gesture = 'NONE';
+                    this.video = document.getElementById('input_video');
+                    this.canvas = document.getElementById('hand-debug-canvas');
+                    this.ctx = this.canvas.getContext('2d');
+                    this.hands = null;
+                    this.camera = null;
+                }
+
+                async toggle() {
+                    const btn = document.getElementById('cam-btn');
+                    if (this.active) {
+                        this.stop();
+                        btn.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5 text-pink-400 pointer-events-none" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" /></svg>`;
+                    } else {
+                        btn.innerHTML = `<span class="text-[8px] animate-pulse">...</span>`;
+                        await this.start();
+                        if (this.active) btn.innerHTML = `<span class="text-pink-100 scale-75">🛑</span>`;
+                        else btn.innerHTML = `<span class="text-red-500">!</span>`;
+                    }
+                }
+
+                async start() {
+                    // Respect the UI Toggle state, don't force block.
+                    // this.canvas.style.display = 'block'; 
+
+                    if (!this.hands) {
+                        this.hands = new Hands({ locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}` });
+                        this.hands.setOptions({
+                            maxNumHands: 1, // Focus on one hand for cursor control
+                            modelComplexity: 0, // Lite Model for Mobile Performance
+                            minDetectionConfidence: 0.5,
+                            minTrackingConfidence: 0.5
+                        });
+                        this.hands.onResults(this.onResults.bind(this));
+                    }
+
+                    if (!this.camera) {
+                        this.camera = new Camera(this.video, {
+                            onFrame: async () => { await this.hands.send({ image: this.video }); },
+                            width: 320,
+                            height: 240,
+                            facingMode: 'user'
+                        });
+                    }
+
+                    try {
+                        await this.camera.start();
+                        this.active = true;
+                        isCameraActive = true;
+                        console.log("Hand Tracking Started");
+                    } catch (error) {
+                        console.error("Camera Init Failed:", error);
+                        alert("Camera access denied or failed.");
+                    }
+                }
+
+                stop() {
+                    // effectively pause
+                    this.active = false;
+                    isCameraActive = false;
+                    this.canvas.style.display = 'none';
+                    // Note: camera.stop() isn't always reliable in cleaning up stream, but valid for simple toggle
+                }
+
+                onResults(results) {
+                    if (!this.active) return;
+
+                    // Draw Debug View
+                    this.ctx.save();
+                    this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
+                    this.ctx.drawImage(results.image, 0, 0, this.canvas.width, this.canvas.height);
+
+                    if (results.multiHandLandmarks && results.multiHandLandmarks.length > 0) {
+                        this.hasHand = true;
+                        const landmarks = results.multiHandLandmarks[0];
+
+                        // Draw Skeleton
+                        drawConnectors(this.ctx, landmarks, HAND_CONNECTIONS, { color: '#00FF00', lineWidth: 2 });
+                        drawLandmarks(this.ctx, landmarks, { color: '#FF0000', lineWidth: 1, radius: 2 });
+
+                        // Track Key Landmarks
+                        const indexTip = landmarks[8];
+                        const thumbTip = landmarks[4];
+                        const middleTip = landmarks[12];
+                        const ringTip = landmarks[16];
+                        const pinkyTip = landmarks[20];
+                        const wrist = landmarks[0];
+
+                        // Convert Pos
+                        const x = indexTip.x;
+                        const y = indexTip.y;
+                        const mirroredX = 1.0 - x;
+                        this.position.x = (mirroredX * 2) - 1;
+                        this.position.y = -(y * 2) + 1;
+
+                        // --- GESTURE RECOGNITION ---
+
+                        // 1. PINCH Detection (Thumb + Index close)
+                        const pinchDist = Math.hypot(indexTip.x - thumbTip.x, indexTip.y - thumbTip.y);
+                        // Relaxed threshold for easier detection (was 0.05)
+                        const isPinch = pinchDist < 0.1;
+
+                        // 2. FIST Detection (Compactness)
+                        // Simplified: Tips close to wrist
+                        const d8 = Math.hypot(indexTip.x - wrist.x, indexTip.y - wrist.y);
+                        const d12 = Math.hypot(middleTip.x - wrist.x, middleTip.y - wrist.y);
+                        const d16 = Math.hypot(ringTip.x - wrist.x, ringTip.y - wrist.y);
+                        const d20 = Math.hypot(pinkyTip.x - wrist.x, pinkyTip.y - wrist.y);
+
+                        // Relaxed Threshold for easier detection
+                        const fistThresh = 0.35;
+                        let isFist = (d8 < fistThresh && d12 < fistThresh && d16 < fistThresh && d20 < fistThresh);
+
+                        // 3. THREE FINGERS (Index, Middle, Thumb Extended? OR Index, Middle, Ring?)
+                        // "3 Finger open wide" -> Thumb, Index, Middle
+                        // Check extensions: Tip Y < PIP Y (extended up in 0-1 space if hand is upright? No, Y increases downwards)
+                        // This primitive check assumes hand is commanding 'Stop' vertical.
+                        // Better: Distance from wrist is large.
+                        const isIndexExt = d8 > 0.3;
+                        const isMiddleExt = d12 > 0.3;
+                        const isRingExt = d16 > 0.3;
+                        const isPinkyExt = d20 > 0.3;
+
+                        // More robust curl check: tip is closer to wrist than PIP is?
+                        // Start with simple extension check based on length.
+                        // 3-Finger: Thumb(4), Index(8), Middle(12). Ring(16)+Pinky(20) folded.
+                        // Thumb logic is hard. 
+                        // Let's assume user does "Scout Sign" (Index, Middle, Ring) or "Victory" (Index, Middle). 
+                        // User said "first 3 finger open wide". -> Thumb, Index, Middle.
+                        const isRingCurled = d16 < fistThresh;
+                        const isPinkyCurled = d20 < fistThresh;
+                        const isThumbExt = Math.hypot(thumbTip.x - wrist.x, thumbTip.y - wrist.y) > 0.2; // Thumb is short
+
+                        const isThreeFinger = isThumbExt && isIndexExt && isMiddleExt && isRingCurled && isPinkyCurled;
+
+                        // 4. POINT (Index only)
+                        const isPoint = isIndexExt && !isMiddleExt && isRingCurled && isPinkyCurled;
+
+                        // 5. PALM Detection (All fingers broad open)
+                        const isPalm = isIndexExt && isMiddleExt && isRingExt && isPinkyExt && isThumbExt;
+
+                        // Decision Tree
+                        if (isFist) {
+                            this.gesture = 'FIST';
+                        } else if (isPinch) {
+                            this.gesture = 'PINCH';
+                        } else if (isThreeFinger) {
+                            this.gesture = 'THREE_FINGER';
+                        } else if (isPoint) {
+                            this.gesture = 'POINT';
+                        } else if (isPalm) {
+                            this.gesture = 'PALM';
+                        } else {
+                            this.gesture = 'OPEN';
+                        }
+
+                    } else {
+                        this.hasHand = false;
+                        this.gesture = 'NONE';
+                    }
+                    this.ctx.restore();
+                }
+            }
+
+            // Start the application after all definitions
+            init();
+            animate();
+        </script>
+</body>
+
+</html>
